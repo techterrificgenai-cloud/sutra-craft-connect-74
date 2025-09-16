@@ -23,6 +23,7 @@ export interface Product {
     shop_name: string;
     verified_badge: boolean;
     rating: number;
+    region?: string;
   };
 }
 
@@ -38,7 +39,7 @@ export const useProducts = () => {
         .from('products')
         .select(`
           *,
-          seller:sellers(shop_name, verified_badge, rating)
+          seller:sellers(shop_name, verified_badge, rating, region)
         `)
         .eq('published', true)
         .order('created_at', { ascending: false });

@@ -46,8 +46,6 @@ const AppContent = () => {
     <div className="min-h-screen bg-background">
       <Navbar 
         userRole={user?.role || null}
-        cartItemCount={3}
-        wishlistCount={5}
         onRoleSwitch={switchRole}
       />
       <Routes>

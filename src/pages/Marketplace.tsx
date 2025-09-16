@@ -4,6 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { useProducts } from "@/hooks/useProducts";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Search, 
   Filter, 
@@ -11,124 +14,113 @@ import {
   Heart,
   Sparkles,
   Grid3X3,
-  List
+  List,
+  ShoppingBag
 } from "lucide-react";
-
-// Import generated images
-import banarasiSaree from "@/assets/banarasi-saree.jpg";
-import bluePottery from "@/assets/blue-pottery.jpg";
-import silverFiligree from "@/assets/silver-filigree.jpg";
-import madhubaniPainting from "@/assets/madhubani-painting.jpg";
-import pashmineShawl from "@/assets/pashmina-shawl.jpg";
-import terracottaPlanters from "@/assets/terracotta-planters.jpg";
 
 const Marketplace = () => {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [selectedFilter, setSelectedFilter] = React.useState("all");
   const [viewMode, setViewMode] = React.useState<'grid' | 'list'>('grid');
   const [wishlistedItems, setWishlistedItems] = React.useState<Set<string>>(new Set());
+  
+  const { products, loading, error, addToWishlist, removeFromWishlist, addToCart } = useProducts();
+  const { user } = useUserRole();
+  const { toast } = useToast();
 
-  // Mock data - in real app this would come from Firebase
-  const products = [
-    {
-      id: "1",
-      title: "Handwoven Banarasi Silk Saree",
-      price: 15000,
-      image: banarasiSaree,
-      artisan: "Meera Devi",
-      region: "Varanasi, UP",
-      badges: ['cultural', 'verified'] as const,
-      hasStory: true,
-      hasAudio: true,
-      story: "This saree carries the legacy of 500-year-old weaving traditions..."
-    },
-    {
-      id: "2", 
-      title: "Blue Pottery Ceramic Bowl Set",
-      price: 2500,
-      image: bluePottery,
-      artisan: "Rajesh Kumar",
-      region: "Jaipur, RJ",
-      badges: ['eco', 'cultural'] as const,
-      hasStory: true,
-      hasAudio: true,
-      story: "Crafted using traditional techniques passed down through generations..."
-    },
-    {
-      id: "3",
-      title: "Silver Filigree Jewelry Box",
-      price: 8500,
-      image: silverFiligree,
-      artisan: "Lakshmi Nayak",
-      region: "Cuttack, OR",
-      badges: ['verified'] as const,
-      hasStory: true,
-      hasAudio: false,
-      story: "Each delicate wire is shaped by hand in an art form dating back to Mughal era..."
-    },
-    {
-      id: "4",
-      title: "Madhubani Painting Canvas",
-      price: 3200,
-      image: madhubaniPainting,
-      artisan: "Sita Mishra",
-      region: "Mithila, BR",
-      badges: ['cultural', 'eco'] as const,
-      hasStory: true,
-      hasAudio: true,
-      story: "Natural pigments and traditional motifs tell stories of ancient folklore..."
-    },
-    {
-      id: "5",
-      title: "Pashmina Wool Shawl",
-      price: 12000,
-      image: pashmineShawl,
-      artisan: "Mohammad Ali",
-      region: "Kashmir, JK",
-      badges: ['eco', 'verified'] as const,
-      hasStory: true,
-      hasAudio: true,
-      story: "From the highlands of Kashmir, each thread spun with generations of expertise..."
-    },
-    {
-      id: "6",
-      title: "Terracotta Garden Planter Set",
-      price: 1800,
-      image: terracottaPlanters,
-      artisan: "Ganga Kumhar",
-      region: "Khurja, UP",
-      badges: ['eco'] as const,
-      hasStory: true,
-      hasAudio: false,
-      story: "Made from locally sourced clay, these planters bring earthen beauty to your space..."
-    }
-  ];
-
+  // Create filters based on actual product tags
+  const allTags = products.flatMap(p => p.tags || []);
+  const uniqueTags = [...new Set(allTags)];
+  
   const filters = [
     { id: 'all', label: 'All Crafts', count: products.length },
-    { id: 'textiles', label: 'Textiles', count: 2 },
-    { id: 'pottery', label: 'Pottery', count: 2 },
-    { id: 'jewelry', label: 'Jewelry', count: 1 },
-    { id: 'paintings', label: 'Art & Paintings', count: 1 }
+    ...uniqueTags.slice(0, 6).map(tag => ({
+      id: tag,
+      label: tag.charAt(0).toUpperCase() + tag.slice(1),
+      count: products.filter(p => p.tags?.includes(tag)).length
+    }))
   ];
 
-  const handleToggleWishlist = (productId: string) => {
-    setWishlistedItems(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(productId)) {
-        newSet.delete(productId);
-      } else {
-        newSet.add(productId);
+  const handleToggleWishlist = async (productId: string) => {
+    if (!user) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to add items to your wishlist.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const isCurrentlyWishlisted = wishlistedItems.has(productId);
+    let success = false;
+
+    if (isCurrentlyWishlisted) {
+      success = await removeFromWishlist(productId, user.id);
+      if (success) {
+        setWishlistedItems(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(productId);
+          return newSet;
+        });
+        toast({
+          title: "Removed from wishlist",
+          description: "Item removed from your wishlist."
+        });
       }
-      return newSet;
-    });
+    } else {
+      success = await addToWishlist(productId, user.id);
+      if (success) {
+        setWishlistedItems(prev => new Set(prev).add(productId));
+        toast({
+          title: "Added to wishlist",
+          description: "Item added to your wishlist."
+        });
+      }
+    }
+
+    if (!success) {
+      toast({
+        title: "Error",
+        description: "Failed to update wishlist. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const filteredProducts = products.filter(product => 
-    product.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.artisan.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.region.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleAddToCart = async (productId: string) => {
+    if (!user) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to add items to your cart.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const success = await addToCart(productId, user.id, 1);
+    if (success) {
+      toast({
+        title: "Added to cart",
+        description: "Item added to your cart successfully."
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to add item to cart. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.seller?.shop_name?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesFilter = selectedFilter === 'all' || 
+      product.tags?.some(tag => tag.toLowerCase().includes(selectedFilter.toLowerCase()));
+    
+    return matchesSearch && matchesFilter;
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -263,23 +255,72 @@ const Marketplace = () => {
             </Card>
 
             {/* Products */}
-            <div className={`grid gap-6 ${
-              viewMode === 'grid' 
-                ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3' 
-                : 'grid-cols-1'
-            }`}>
-              {filteredProducts.map((product) => (
-                <StoryCard
-                  key={product.id}
-                  {...product}
-                  isWishlisted={wishlistedItems.has(product.id)}
-                  onToggleWishlist={() => handleToggleWishlist(product.id)}
-                  onAddToCart={() => console.log('Add to cart:', product.id)}
-                  onPlayStory={() => console.log('Play story:', product.id)}
-                  onViewDetails={() => console.log('View details:', product.id)}
-                />
-              ))}
-            </div>
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Loading beautiful crafts...</p>
+              </div>
+            ) : error ? (
+              <div className="text-center py-12">
+                <p className="text-destructive mb-4">Error loading products: {error}</p>
+                <Button onClick={() => window.location.reload()}>Try Again</Button>
+              </div>
+            ) : filteredProducts.length === 0 && products.length === 0 ? (
+              <div className="text-center py-12">
+                <ShoppingBag className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-xl font-semibold mb-2">No crafts available yet</h3>
+                <p className="text-muted-foreground mb-6">
+                  Artisans are still setting up their beautiful creations. Check back soon!
+                </p>
+                <Button variant="outline" onClick={() => window.location.reload()}>
+                  Refresh
+                </Button>
+              </div>
+            ) : filteredProducts.length === 0 ? (
+              <div className="text-center py-12">
+                <Search className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-xl font-semibold mb-2">No results found</h3>
+                <p className="text-muted-foreground mb-6">
+                  Try adjusting your search terms or filters
+                </p>
+                <Button variant="outline" onClick={() => {
+                  setSearchTerm('');
+                  setSelectedFilter('all');
+                }}>
+                  Clear Filters
+                </Button>
+              </div>
+            ) : (
+              <div className={`grid gap-6 ${
+                viewMode === 'grid' 
+                  ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3' 
+                  : 'grid-cols-1'
+              }`}>
+                {filteredProducts.map((product) => (
+                  <StoryCard
+                    key={product.id}
+                    id={product.id}
+                    title={product.title}
+                    price={product.price}
+                    image={product.photos?.[0] || ''}
+                    artisan={product.seller?.shop_name || 'Unknown Artisan'}
+                    region={product.seller?.region || 'Unknown Region'}
+                    badges={[
+                      ...(product.eco_badge ? ['eco' as const] : []),
+                      ...(product.cultural_badge ? ['cultural' as const] : []),
+                      ...(product.seller?.verified_badge ? ['verified' as const] : [])
+                    ]}
+                    hasStory={!!product.story_text}
+                    hasAudio={!!product.story_audio_url}
+                    isWishlisted={wishlistedItems.has(product.id)}
+                    onToggleWishlist={() => handleToggleWishlist(product.id)}
+                    onAddToCart={() => handleAddToCart(product.id)}
+                    onPlayStory={() => console.log('Play story:', product.id)}
+                    onViewDetails={() => console.log('View details:', product.id)}
+                  />
+                ))}
+              </div>
+            )}
 
             {/* Load More */}
             <div className="text-center mt-12">

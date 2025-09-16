@@ -2,6 +2,8 @@ import * as React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useCart } from '@/hooks/useCart';
+import { useUserRole } from '@/hooks/useUserRole';
 import { 
   Heart, 
   ShoppingCart, 
@@ -20,8 +22,19 @@ interface NavbarProps {
   onRoleSwitch?: (role: 'buyer' | 'seller') => void;
 }
 
-const Navbar = ({ userRole, cartItemCount = 0, wishlistCount = 0, onRoleSwitch }: NavbarProps) => {
+export const Navbar = ({ 
+  userRole, 
+  cartItemCount: propCartItemCount, 
+  wishlistCount: propWishlistCount, 
+  onRoleSwitch 
+}: NavbarProps) => {
+  const { user } = useUserRole();
+  const { cartItems } = useCart();
   const location = useLocation();
+  
+  // Use real data when available, fallback to props
+  const cartItemCount = user ? cartItems.length : propCartItemCount || 0;
+  const wishlistCount = propWishlistCount || 0;
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -194,5 +207,3 @@ const Navbar = ({ userRole, cartItemCount = 0, wishlistCount = 0, onRoleSwitch }
     </nav>
   );
 };
-
-export { Navbar };
