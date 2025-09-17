@@ -79,7 +79,14 @@ const Auth = () => {
         password,
       });
 
-      if (signInError) throw signInError;
+      if (signInError) {
+        if (signInError.message === 'Email not confirmed') {
+          setError('Please check your email and click the confirmation link before signing in. If you can\'t find the email, try signing up again.');
+        } else {
+          setError(signInError.message);
+        }
+        return;
+      }
 
       if (data.user) {
         // Get user profile to determine role
@@ -93,7 +100,11 @@ const Auth = () => {
         navigate(userRole === 'seller' ? '/seller' : '/buyer');
       }
     } catch (error: any) {
-      setError(error.message);
+      if (error.message === 'Email not confirmed') {
+        setError('Please check your email and click the confirmation link before signing in. If you can\'t find the email, try signing up again.');
+      } else {
+        setError(error.message);
+      }
     } finally {
       setLoading(false);
     }
